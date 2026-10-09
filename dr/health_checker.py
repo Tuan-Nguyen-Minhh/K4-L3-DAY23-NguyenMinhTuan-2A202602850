@@ -29,13 +29,52 @@ URL = {"a": "http://127.0.0.1:8001", "b": "http://127.0.0.1:8002"}
 
 
 def probe(region: str, timeout: float) -> tuple[bool, str]:
-    """TODO: trả về (ready, reason). Timeout PHẢI có — netblock làm request treo mãi."""
-    raise NotImplementedError
+    """Trả về (ready, reason). Timeout PHẢI có — netblock làm request treo mãi."""
+    try:
+        r = httpx.get(f"{URL[region]}/readyz", timeout=timeout)
+    except httpx.TimeoutException as e:
+        return False, f"timeout: {type(e).__name__}"
+    except httpx.HTTPError as e:
+        return False, f"connect: {type(e).__name__}"
+    if r.status_code == 200:
+        return True, "ready"
+    try:
+        body = r.json()
+        reason = ",".join(body.get("reasons") or []) or f"status_{r.status_code}"
+    except Exception:
+        reason = f"status_{r.status_code}"
+    return False, reason
+
+
+def _write(out: pathlib.Path, rec: dict):
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("a") as f:
+        f.write(json.dumps(rec) + "\n")
 
 
 def run(interval: float, timeout: float, threshold: int, duration: float, out: pathlib.Path):
-    """TODO: vòng lặp poll + phát hiện transition + ghi JSONL."""
-    raise NotImplementedError
+    """Vòng lặp poll + phát hiện transition + ghi JSONL (chỉ khi state thay đổi)."""
+    states = {"a": "HEALTHY", "b": "HEALTHY"}
+    consec = {"a": 0, "b": 0}
+    t_end = time.time() + duration
+    while time.time() < t_end:
+        for region in ("a", "b"):
+            ready, reason = probe(region, timeout)
+            prev = states[region]
+            if ready:
+                consec[region] = 0
+                new = "HEALTHY"
+            else:
+                consec[region] += 1
+                new = "UNHEALTHY" if consec[region] >= threshold else prev
+            if new != prev:
+                states[region] = new
+                rec = {"ts": time.time(), "event": "state_change", "region": region,
+                       "to": new, "reason": reason if not ready else "ready",
+                       "consecutive_fails": consec[region], "interval_s": interval,
+                       "threshold": threshold}
+                _write(out, rec)
+        time.sleep(interval)
 
 
 if __name__ == "__main__":

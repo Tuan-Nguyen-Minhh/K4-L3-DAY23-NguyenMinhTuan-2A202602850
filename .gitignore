@@ -15,6 +15,9 @@ reports/*.json
 !reports/failover-events.jsonl
 !reports/health-events.jsonl
 !reports/replication.jsonl
+# Output cua tools/measure_rto.py — duoc reports/rto-evidence.md trich dan lam evidence
+!reports/measure-drill-1.json
+!reports/measure-drill-2.json
 
 # File tam do test/thu nghiem sinh ra (khong phai bang chung)
 reports/_*.jsonl
@@ -25,6 +28,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+.venv-wsl/
 venv/
 
 # OS
